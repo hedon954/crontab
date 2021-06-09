@@ -7,13 +7,12 @@ import (
 	"time"
 )
 
-
-var(
+var (
 	confFile string //配置文件路径
 )
 
 //解析命令行参数
-func initArgs()  {
+func initArgs() {
 	//worker -config ./worker.json
 	//worker -h
 	flag.StringVar(&confFile, "config", "./worker.json", "指定 worker.json")
@@ -21,7 +20,7 @@ func initArgs()  {
 }
 
 //初始化线程数量
-func initEnv()  {
+func initEnv() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 }
 
@@ -41,22 +40,27 @@ func main() {
 		panic(err)
 	}
 
+	//启动执行器
+	if err = worker.InitExecutor(); err != nil {
+		panic(err)
+	}
+
 	//启动调度器
 	if err = worker.InitScheduler(); err != nil {
 		panic(err)
 	}
 
-	//初始化 etcd 管理器
-	if err  = worker.InitJobManager(); err != nil {
+	//初始化任务管理器
+	if err = worker.InitJobManager(); err != nil {
 		panic(err)
 	}
 
-	//启动任务监听
+	//启动任务监听器
 	if err = worker.G_jobManager.WatchJobs(); err != nil {
 		panic(err)
 	}
 
-	for  {
+	for {
 		time.Sleep(1 * time.Second)
 	}
 
