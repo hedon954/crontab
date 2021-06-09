@@ -2,6 +2,7 @@ package worker
 
 import (
 	"crontab/common"
+	"fmt"
 	"time"
 )
 
@@ -143,13 +144,18 @@ func (scheduler *Scheduler) TryStartJob(jobPlan *common.JobSchedulePlan) {
 		scheduler.jobExecutingTable[jobPlan.Job.Name] = jobExecuteInfo
 
 		//4. 执行任务
+		fmt.Println("开始执行任务：", jobExecuteInfo)
 		G_executor.ExecuteJob(jobExecuteInfo)
 	}
 }
 
 //处理任务执行结果
 func (scheduler *Scheduler) HandleJobResult(result *common.JobExecuteResult) {
+	//1. 删除执行状态
+	delete(scheduler.jobExecutingTable, result.JobExecuteInfo.Job.Name)
 
+	//2. 保存任务执行结果到 mongodb
+	fmt.Println(result.JobExecuteInfo.Job, "任务执行结果：", string(result.Output))
 }
 
 //初始化调度器
