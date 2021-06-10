@@ -45,7 +45,6 @@ func (scheduler *Scheduler) scheduleLoop() {
 		case <-scheduleTimer.C: //最近的任务到期了
 		case jobExecuteResult = <-scheduler.jobResultChan: //监听到任务执行结果
 			scheduler.HandleJobResult(jobExecuteResult)
-
 		}
 
 		//调度一次任务

@@ -9,33 +9,33 @@ import (
 )
 
 /**
-	etcd 控制类，用于从 master 节点中同步所有人 job
- */
+etcd 控制类，用于从 master 节点中同步所有人 job
+*/
 
-var(
+var (
 	G_jobManager *JobManager
 )
 
 type JobManager struct {
-	client *clientv3.Client
-	kv clientv3.KV
-	lease clientv3.Lease
+	client  *clientv3.Client
+	kv      clientv3.KV
+	lease   clientv3.Lease
 	watcher clientv3.Watcher
 }
 
 func InitJobManager() error {
-	var(
-		err error
-		config clientv3.Config
-		client *clientv3.Client
-		kv clientv3.KV
-		lease clientv3.Lease
+	var (
+		err     error
+		config  clientv3.Config
+		client  *clientv3.Client
+		kv      clientv3.KV
+		lease   clientv3.Lease
 		watcher clientv3.Watcher
 	)
 
 	//配置 etcd 客户端
 	config = clientv3.Config{
-		Endpoints: G_config.EtcdEndpoints,
+		Endpoints:   G_config.EtcdEndpoints,
 		DialTimeout: time.Duration(G_config.EtcdDiaTimeOut) * time.Second,
 	}
 
@@ -55,29 +55,28 @@ func InitJobManager() error {
 
 	//赋值单例
 	G_jobManager = &JobManager{
-		client: client,
-		kv: kv,
-		lease: lease,
+		client:  client,
+		kv:      kv,
+		lease:   lease,
 		watcher: watcher,
 	}
 
 	return nil
 }
 
-
 //监听任务变化
 func (jobManager JobManager) WatchJobs() error {
-	var(
-		getResponse *clientv3.GetResponse
-		kvPair *mvccpb.KeyValue
-		job *common.Job
+	var (
+		getResponse        *clientv3.GetResponse
+		kvPair             *mvccpb.KeyValue
+		job                *common.Job
 		watchStartRevision int64
-		watchChan clientv3.WatchChan
-		watchResponse clientv3.WatchResponse
-		watchEvent *clientv3.Event
-		jobName string
-		jobEvent *common.JobEvent
-		err error
+		watchChan          clientv3.WatchChan
+		watchResponse      clientv3.WatchResponse
+		watchEvent         *clientv3.Event
+		jobName            string
+		jobEvent           *common.JobEvent
+		err                error
 	)
 	//1. 得到 /cron/jobs/ 目录下的所有任务，并且获知当前集群的 revision
 	if getResponse, err = jobManager.kv.Get(context.TODO(), common.JOB_SAVE_DIR, clientv3.WithPrefix()); err != nil {
@@ -85,9 +84,9 @@ func (jobManager JobManager) WatchJobs() error {
 	}
 
 	//全量的任务列表
-	for _, kvPair = range getResponse.Kvs{
+	for _, kvPair = range getResponse.Kvs {
 		//反序列化
-		if job, err = common.UnmarshalJob(kvPair.Value); err == nil{
+		if job, err = common.UnmarshalJob(kvPair.Value); err == nil {
 			jobEvent = common.BuildJobEvent(common.JOB_EVENT_SAVE, job)
 			//TODO: 把这个 job 同步给 scheduler 调度协程
 			G_schedular.PushJobEven(jobEvent)
@@ -100,9 +99,9 @@ func (jobManager JobManager) WatchJobs() error {
 		//监听 /cron/jobs/ 的后续变化
 		watchChan = jobManager.watcher.Watch(context.TODO(), common.JOB_SAVE_DIR, clientv3.WithPrefix(), clientv3.WithRev(watchStartRevision))
 		for watchResponse = range watchChan {
-			for _, watchEvent = range watchResponse.Events{
+			for _, watchEvent = range watchResponse.Events {
 				switch watchEvent.Type {
-				case mvccpb.PUT:  //任务保存
+				case mvccpb.PUT: //任务保存
 					//反序列化 job
 					if job, err = common.UnmarshalJob(watchEvent.Kv.Value); err != nil {
 						continue
@@ -111,7 +110,7 @@ func (jobManager JobManager) WatchJobs() error {
 					jobEvent = common.BuildJobEvent(common.JOB_EVENT_SAVE, job)
 					G_schedular.PushJobEven(jobEvent)
 
-				case mvccpb.DELETE:  //任务删除  DELETE /cron/jobs/job1
+				case mvccpb.DELETE: //任务删除  DELETE /cron/jobs/job1
 					//提取出 jobName
 					jobName = common.ExtractJobName(string(watchEvent.Kv.Value))
 					job = &common.Job{
@@ -121,13 +120,15 @@ func (jobManager JobManager) WatchJobs() error {
 					jobEvent = common.BuildJobEvent(common.JOB_EVENT_DELETE, job)
 					G_schedular.PushJobEven(jobEvent)
 
-
 				}
 			}
 		}
-	
+
 	}()
-
-
 	return nil
+}
+
+//创建一把分布式锁
+func (jobManager *JobManager) CreateJobLock(jobName string) *JobLock {
+	return InitJobLock(jobName, jobManager.kv, jobManager.lease)
 }
