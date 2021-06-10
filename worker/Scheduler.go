@@ -60,18 +60,27 @@ func (scheduler *Scheduler) scheduleLoop() {
 func (scheduler *Scheduler) HandleJobEvent(jobEvent *common.JobEvent) {
 	var (
 		jobSchedulePlan *common.JobSchedulePlan
+		jobExecutorInfo *common.JobExecuteInfo
+		jobExecuting    bool
 		jobExisted      bool
 		err             error
 	)
 	switch jobEvent.EventType {
-	case common.JOB_EVENT_SAVE:
+	case common.JOB_EVENT_SAVE: //保存任务事件
 		if jobSchedulePlan, err = common.BuildJobSchedulePlan(jobEvent.Job); err != nil {
 			return
 		}
 		scheduler.jobPlanTable[jobEvent.Job.Name] = jobSchedulePlan
-	case common.JOB_EVENT_DELETE:
+	case common.JOB_EVENT_DELETE: //删除任务事件
 		if jobSchedulePlan, jobExisted = scheduler.jobPlanTable[jobEvent.Job.Name]; jobExisted {
 			delete(scheduler.jobPlanTable, jobEvent.Job.Name)
+		}
+	case common.JOB_EVENT_KILL: //强杀任务事件
+		if jobExecutorInfo, jobExecuting = scheduler.jobExecutingTable[jobEvent.Job.Name]; jobExecuting {
+			//取消 command 执行
+			jobExecutorInfo.CancelFunc()
+			//删除状态
+			delete(scheduler.jobExecutingTable, jobEvent.Job.Name)
 		}
 	}
 }
@@ -133,11 +142,7 @@ func (scheduler *Scheduler) TryStartJob(jobPlan *common.JobSchedulePlan) {
 	if jobExecuteInfo, jobExecuting = scheduler.jobExecutingTable[jobPlan.Job.Name]; !jobExecuting {
 
 		//2. 没有执行，就构建状态信息
-		jobExecuteInfo = &common.JobExecuteInfo{
-			Job:      jobPlan.Job,
-			PlanTime: jobPlan.NextTime,
-			RealTime: time.Now(),
-		}
+		jobExecuteInfo = common.BuildJobExecuteInfo(jobPlan)
 
 		//3. 保存状态信息
 		scheduler.jobExecutingTable[jobPlan.Job.Name] = jobExecuteInfo
@@ -150,11 +155,33 @@ func (scheduler *Scheduler) TryStartJob(jobPlan *common.JobSchedulePlan) {
 
 //处理任务执行结果
 func (scheduler *Scheduler) HandleJobResult(result *common.JobExecuteResult) {
+	var (
+		jobLog *common.JobLog
+	)
+
 	//1. 删除执行状态
 	delete(scheduler.jobExecutingTable, result.JobExecuteInfo.Job.Name)
 
 	//2. 保存任务执行结果到 mongodb
-	fmt.Println(result.JobExecuteInfo.Job, "任务执行结果：", string(result.Output))
+	if result.Err != common.ERR_LOCK_ALREADY_REQUIRED {
+		jobLog = &common.JobLog{
+			JobName:      result.JobExecuteInfo.Job.Name,
+			Command:      result.JobExecuteInfo.Job.Command,
+			Output:       string(result.Output),
+			PlanTime:     result.JobExecuteInfo.PlanTime.Unix() / 1000,
+			ScheduleTime: result.JobExecuteInfo.RealTime.Unix() / 1000,
+			StartTime:    result.StartTime.Unix() / 1000,
+			EndTime:      result.EndTime.Unix() / 1000,
+		}
+	}
+
+	if result.Err != nil {
+		jobLog.Err = result.Err.Error()
+	} else {
+		jobLog.Err = ""
+	}
+
+	G_logSink.AppendLog(jobLog)
 }
 
 //初始化调度器

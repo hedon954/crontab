@@ -60,6 +60,16 @@ func main() {
 		panic(err)
 	}
 
+	//监听任务的强杀情况
+	if err = worker.G_jobManager.WatchKilledJob(); err != nil {
+		panic(err)
+	}
+
+	//初始化日志处理器
+	if err = worker.InitLogSink(); err != nil {
+		panic(err)
+	}
+
 	for {
 		time.Sleep(1 * time.Second)
 	}

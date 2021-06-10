@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/gorhill/cronexpr"
 	"strings"
@@ -29,9 +30,11 @@ type JobSchedulePlan struct {
 
 //任务执行信息表
 type JobExecuteInfo struct {
-	Job      *Job      //对应的任务
-	PlanTime time.Time //理论上的调度时间
-	RealTime time.Time //实际上的调度时间
+	Job           *Job               //对应的任务
+	PlanTime      time.Time          //理论上的调度时间
+	RealTime      time.Time          //实际上的调度时间
+	CancelContext context.Context    //任务 command 的上下文
+	CancelFunc    context.CancelFunc //用于取消 command 执行的函数
 }
 
 //任务执行结果
@@ -41,6 +44,23 @@ type JobExecuteResult struct {
 	Err            error           //任务执行错误信息
 	StartTime      time.Time       //任务启动时间
 	EndTime        time.Time       //任务完成时间
+}
+
+//任务执行日志
+type JobLog struct {
+	JobName      string `bson:"jobName"`      //任务名
+	Command      string `bson:"command"`      //脚本命令
+	Err          string `bson:"err"`          //异常信息
+	Output       string `bson:"output"`       //任务输出
+	PlanTime     int64  `bson:"planTime"`     //计划执行时间
+	ScheduleTime int64  `bson:"scheduleTime"` //实际调度时间
+	StartTime    int64  `bson:"startTime"`    //真实启动时间
+	EndTime      int64  `bson:"endTime"`      //任务结束时间
+}
+
+//日志批次
+type LogBatch struct {
+	Logs []interface{} //多条日志
 }
 
 //接口的统一应答
@@ -76,8 +96,8 @@ func UnmarshalJob(bytes []byte) (*Job, error) {
 }
 
 //从 etcd event key 中提取任务名称
-func ExtractJobName(jobKey string) string {
-	return strings.TrimPrefix(jobKey, JOB_SAVE_DIR)
+func ExtractJobName(prefix string, jobKey string) string {
+	return strings.TrimPrefix(jobKey, prefix)
 }
 
 //构建 Job 事件
@@ -113,9 +133,12 @@ func BuildJobSchedulePlan(job *Job) (*JobSchedulePlan, error) {
 
 //构建任务执行状态信息
 func BuildJobExecuteInfo(plan *JobSchedulePlan) (jobExecuteInfo *JobExecuteInfo) {
+	cancelContext, cancelFunc := context.WithCancel(context.TODO())
 	return &JobExecuteInfo{
-		Job:      plan.Job,
-		PlanTime: plan.NextTime,
-		RealTime: time.Now(),
+		Job:           plan.Job,
+		PlanTime:      plan.NextTime,
+		RealTime:      time.Now(),
+		CancelContext: cancelContext,
+		CancelFunc:    cancelFunc,
 	}
 }

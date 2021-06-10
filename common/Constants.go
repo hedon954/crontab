@@ -14,4 +14,5 @@ const (
 	//任务事件
 	JOB_EVENT_SAVE   = 1 //更新任务事件
 	JOB_EVENT_DELETE = 2 //删除任务事件
+	JOB_EVENT_KILL   = 3 //强杀任务事件
 )

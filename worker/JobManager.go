@@ -50,7 +50,7 @@ func InitJobManager() error {
 	//申请租约
 	lease = clientv3.NewLease(client)
 
-	//申请一个监听器
+	//申请任务监听器
 	watcher = clientv3.NewWatcher(client)
 
 	//赋值单例
@@ -112,7 +112,7 @@ func (jobManager JobManager) WatchJobs() error {
 
 				case mvccpb.DELETE: //任务删除  DELETE /cron/jobs/job1
 					//提取出 jobName
-					jobName = common.ExtractJobName(string(watchEvent.Kv.Value))
+					jobName = common.ExtractJobName(common.JOB_SAVE_DIR, string(watchEvent.Kv.Key))
 					job = &common.Job{
 						Name: jobName,
 					}
@@ -131,4 +131,40 @@ func (jobManager JobManager) WatchJobs() error {
 //创建一把分布式锁
 func (jobManager *JobManager) CreateJobLock(jobName string) *JobLock {
 	return InitJobLock(jobName, jobManager.kv, jobManager.lease)
+}
+
+//监听任务的强杀情况
+func (jobManager *JobManager) WatchKilledJob() error {
+	var (
+		watchChan  clientv3.WatchChan
+		watchResp  clientv3.WatchResponse
+		watchEvent *clientv3.Event
+		jobEvent   *common.JobEvent
+		jobName    string
+		job        *common.Job
+		err        error
+	)
+
+	//启动一个监听协程去监听 etcd 中 /cron/killer/ 目录的变化
+	go func() {
+		watchChan = jobManager.watcher.Watch(context.TODO(), common.JOB_KILLER_DIR, clientv3.WithPrefix())
+		//处理监听事件
+		for watchResp = range watchChan {
+			for _, watchEvent = range watchResp.Events {
+				switch watchEvent.Type {
+				case mvccpb.PUT: //杀死某个任务
+					//提取出任务名
+					jobName = common.ExtractJobName(common.JOB_KILLER_DIR, string(watchEvent.Kv.Key))
+					job = &common.Job{Name: jobName}
+					jobEvent = common.BuildJobEvent(common.JOB_EVENT_KILL, job)
+					//推送事件给 scheduler
+					G_schedular.PushJobEven(jobEvent)
+				case mvccpb.DELETE: // killer 标记过期
+					//不作任何处理
+				}
+			}
+		}
+	}()
+
+	return err
 }
