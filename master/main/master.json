@@ -14,6 +14,12 @@
   "etcd 连接超时时间": "单位是毫秒",
   "etcdDialTimeout": 5000,
 
+  "mongodb 地址": "采用 mongodb uri",
+  "mongodbURI": "mongodb://121.4.146.25:27017",
+
+  "mongodb 连接超时时间": "单位是毫秒",
+  "mongodbConnectTimeOut": 5000,
+
   "web 页面根目录": "静态页面，前后端分离开发",
   "webroot": "./webroot"
 }

@@ -47,6 +47,11 @@ func main() {
 		panic(err)
 	}
 
+	//初始化日志管理器
+	if err = master.InitLogManager(); err != nil {
+		panic(err)
+	}
+
 	//启动 Api HTTP 服务
 	if err = master.InitApiServer(); err != nil {
 		panic(err)
