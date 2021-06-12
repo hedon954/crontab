@@ -25,6 +25,7 @@
         <div class="row">
             <div class="col-md-12">
                 <button type="button" class="btn btn-primary" id="new-job-btn">新建任务</button>
+                <button type="button" class="btn btn-success" id="worker-list-btn">健康节点</button>
             </div>
         </div>
 
@@ -123,6 +124,33 @@
                             </tr>
                         </thead>
                         <tbody id="job-list-body">
+
+                        </tbody>
+                    </table>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 健康节点模态框 -->
+    <div id="worker-list-modal" class="modal fade" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title">健康节点</h4>
+                </div>
+                <div class="modal-body">
+                    <table id="worker-list" class="table table-striped">
+                        <thead>
+                        <tr>
+                            <th>节点 IP</th>
+                        </tr>
+                        </thead>
+                        <tbody id="worker-list-body">
 
                         </tbody>
                     </table>
@@ -275,6 +303,37 @@
 
             //3. 显示模态框
             $("#job-log-modal").modal("show")
+
+        })
+
+        //查看健康节点
+        $("#worker-list-btn").on("click", function (){
+
+            //1. 清空模态框
+            $("#worker-list tbody").html("")
+
+            //2. 请求数据加载模态框
+
+            $.ajax({
+                url: "/worker/list",
+                dataType: "json",
+                success: function (resp){
+                    if (resp.code != 0){
+                        return
+                    }
+                    //遍历结果
+                    var workerIPs = resp.data
+                    for(var i=0;i<workerIPs.length;i++){
+                        var workerIP = workerIPs[i]
+                        var tr = $("<tr>")
+                        tr.append($("<td>").html(workerIP))
+                        $("#worker-list-body").append(tr)
+                    }
+                }
+            })
+
+            //3. 显示模态框
+            $("#worker-list-modal").modal("show")
 
         })
 
