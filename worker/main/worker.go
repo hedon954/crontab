@@ -70,6 +70,11 @@ func main() {
 		panic(err)
 	}
 
+	//初始化服务注册
+	if err = worker.InitRegister(); err != nil {
+		panic(err)
+	}
+
 	for {
 		time.Sleep(1 * time.Second)
 	}

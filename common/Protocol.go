@@ -48,14 +48,14 @@ type JobExecuteResult struct {
 
 //任务执行日志
 type JobLog struct {
-	JobName      string `bson:"jobName" json:"jobName"`      //任务名
-	Command      string `bson:"command" json:"command"`      //脚本命令
-	Err          string `bson:"err" json:"err"`          //异常信息
-	Output       string `bson:"output" json:"output"`       //任务输出
-	PlanTime     int64  `bson:"planTime" json:"planTime"`     //计划执行时间
+	JobName      string `bson:"jobName" json:"jobName"`           //任务名
+	Command      string `bson:"command" json:"command"`           //脚本命令
+	Err          string `bson:"err" json:"err"`                   //异常信息
+	Output       string `bson:"output" json:"output"`             //任务输出
+	PlanTime     int64  `bson:"planTime" json:"planTime"`         //计划执行时间
 	ScheduleTime int64  `bson:"scheduleTime" json:"scheduleTime"` //实际调度时间
-	StartTime    int64  `bson:"startTime" json:"startTime"`    //真实启动时间
-	EndTime      int64  `bson:"endTime" json:"endTime"`      //任务结束时间
+	StartTime    int64  `bson:"startTime" json:"startTime"`       //真实启动时间
+	EndTime      int64  `bson:"endTime" json:"endTime"`           //任务结束时间
 }
 
 //日志批次
@@ -70,7 +70,7 @@ type JobLogFilter struct {
 
 //任务日志排序条件
 type JobLogSorter struct {
-	SortOrder int `bson:"startTime"`		//startTime:-1
+	SortOrder int `bson:"startTime"` //startTime:-1
 }
 
 //接口的统一应答
@@ -108,6 +108,11 @@ func UnmarshalJob(bytes []byte) (*Job, error) {
 //从 etcd event key 中提取任务名称
 func ExtractJobName(prefix string, jobKey string) string {
 	return strings.TrimPrefix(jobKey, prefix)
+}
+
+//从 /cron/workers/22.22.22.22 中提取 ip 地址
+func ExtractWorkerIp(value string) string {
+	return strings.TrimPrefix(value, JOB_WORKERS_DIR)
 }
 
 //构建 Job 事件

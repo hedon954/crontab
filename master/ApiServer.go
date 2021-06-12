@@ -23,12 +23,12 @@ type ApiServer struct {
 //初始化服务
 func InitApiServer() error {
 	var (
-		mux *http.ServeMux
-		listener net.Listener
-		httpServer *http.Server
-		staticDir http.Dir
+		mux           *http.ServeMux
+		listener      net.Listener
+		httpServer    *http.Server
+		staticDir     http.Dir
 		staticHandler http.Handler
-		err error
+		err           error
 	)
 
 	//配置路由
@@ -38,6 +38,7 @@ func InitApiServer() error {
 	mux.HandleFunc("/job/list", handleJobList)
 	mux.HandleFunc("/job/kill", handleJobKill)
 	mux.HandleFunc("/job/log", handleJobLog)
+	mux.HandleFunc("/worker/list", handleWorkerList)
 
 	//定义静态文件的存储目录
 	staticDir = http.Dir(G_config.Webroot)
@@ -47,18 +48,17 @@ func InitApiServer() error {
 	//然后 StripPrefix 会去 staticDir 下面找 index.html，也就是组成了 ./webroot/index.html
 	mux.Handle("/", http.StripPrefix("/", staticHandler))
 
-
 	//启动 HTTP 监听
-	if listener, err = net.Listen("tcp", ":" + strconv.Itoa(G_config.ApiPort)); err != nil {
+	if listener, err = net.Listen("tcp", ":"+strconv.Itoa(G_config.ApiPort)); err != nil {
 		fmt.Println("启动 HTTP 监听发生异常")
 		return err
 	}
 
 	//创建一个 HTTP 服务
 	httpServer = &http.Server{
-		ReadTimeout: time.Duration(G_config.ApiReadTimeOut) * time.Millisecond,
+		ReadTimeout:  time.Duration(G_config.ApiReadTimeOut) * time.Millisecond,
 		WriteTimeout: time.Duration(G_config.ApiWriteTimeOut) * time.Millisecond,
-		Handler: mux,
+		Handler:      mux,
 	}
 
 	//单例赋值
@@ -73,18 +73,46 @@ func InitApiServer() error {
 }
 
 /**
-	接口 /job/log：查询某个日志的日志记录
+接口 /worker/list：获取健康 worker 结点列表
 
-	请求格式：GET /job/log?jobName=job1&skipParam=1&limitParam=5
- */
+请求格式： GET /worker/list
+*/
+func handleWorkerList(writer http.ResponseWriter, request *http.Request) {
+	var (
+		err       error
+		workerAdd []string
+		resp      []byte
+	)
+
+	if workerAdd, err = G_workerManager.ListWorkers(); err != nil {
+		goto ERR
+	}
+
+	if resp, err = common.BuildResponse(0, "获取集群列表成功", workerAdd); err == nil {
+		writer.Write(resp)
+	}
+
+	return
+
+ERR:
+	if resp, err = common.BuildResponse(-1, "获取集群列表失败", nil); err == nil {
+		writer.Write(resp)
+	}
+}
+
+/**
+接口 /job/log：查询某个日志的日志记录
+
+请求格式：GET /job/log?jobName=job1&skipParam=1&limitParam=5
+*/
 func handleJobLog(writer http.ResponseWriter, request *http.Request) {
-	var(
-		err error
+	var (
+		err                            error
 		skipParam, limitParam, jobName string
-		skip	int 	//起始位置
-		limit	int		//返回多少条
-		listLog []*common.JobLog	//日志集合
-		resp []byte
+		skip                           int              //起始位置
+		limit                          int              //返回多少条
+		listLog                        []*common.JobLog //日志集合
+		resp                           []byte
 	)
 
 	//解析 form 表单
@@ -99,7 +127,7 @@ func handleJobLog(writer http.ResponseWriter, request *http.Request) {
 	if skip, err = strconv.Atoi(skipParam); err != nil {
 		skip = 0
 	}
-	if limit, err  = strconv.Atoi(limitParam); err != nil {
+	if limit, err = strconv.Atoi(limitParam); err != nil {
 		limit = 10
 	}
 
@@ -117,20 +145,20 @@ func handleJobLog(writer http.ResponseWriter, request *http.Request) {
 
 	//异常应答
 ERR:
-	if resp,err = common.BuildResponse(-1,"请求异常", err.Error()); err == nil {
+	if resp, err = common.BuildResponse(-1, "请求异常", err.Error()); err == nil {
 		writer.Write(resp)
 	}
 }
 
 /**
-	接口 /job/kill ：强制终止某个任务
+接口 /job/kill ：强制终止某个任务
 
-	请求格式：POST: jobName = job1
- */
+请求格式：POST: jobName = job1
+*/
 func handleJobKill(writer http.ResponseWriter, request *http.Request) {
-	var(
-		bytes []byte
- 		err error
+	var (
+		bytes   []byte
+		err     error
 		jobName string
 	)
 	//1. 解析表单
@@ -160,14 +188,14 @@ ERR:
 }
 
 /**
-	接口 /job/list ：列出所有任务
+接口 /job/list ：列出所有任务
 
-	请求格式：GET
+请求格式：GET
 */
 func handleJobList(writer http.ResponseWriter, request *http.Request) {
 	var (
-		err error
-		jobs []*common.Job
+		err   error
+		jobs  []*common.Job
 		bytes []byte
 	)
 
@@ -177,29 +205,29 @@ func handleJobList(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	//正常应答
-	if bytes,err = common.BuildResponse(0, "success", jobs); err == nil{
+	if bytes, err = common.BuildResponse(0, "success", jobs); err == nil {
 		writer.Write(bytes)
 	}
 	return
 
 ERR:
-	if bytes,err = common.BuildResponse(-1, "failed", nil); err == nil {
+	if bytes, err = common.BuildResponse(-1, "failed", nil); err == nil {
 		writer.Write(bytes)
 	}
 }
 
 /**
-	接口 /job/save ：保存任务
+接口 /job/save ：保存任务
 
-	请求格式：POST job = {"name":"job1", "command": "echo hello", "cronExpr":"* * * * *"}
- */
+请求格式：POST job = {"name":"job1", "command": "echo hello", "cronExpr":"* * * * *"}
+*/
 func handleJobSave(writer http.ResponseWriter, request *http.Request) {
-	var(
-		err error
+	var (
+		err     error
 		postJob string
-		job common.Job
-		oldJob *common.Job
-		bytes []byte
+		job     common.Job
+		oldJob  *common.Job
+		bytes   []byte
 	)
 
 	//1. 解析 POST 表单
@@ -221,7 +249,7 @@ func handleJobSave(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	//5. 检查是否有旧值，有就返回
-	if bytes,err = common.BuildResponse(0,"success", oldJob); err == nil {
+	if bytes, err = common.BuildResponse(0, "success", oldJob); err == nil {
 		writer.Write(bytes)
 	}
 
@@ -229,23 +257,23 @@ func handleJobSave(writer http.ResponseWriter, request *http.Request) {
 	return
 
 	//7. 异常退出
-	ERR:
-		if bytes, err = common.BuildResponse(-1, err.Error(), nil); err == nil {
-			writer.Write(bytes)
-		}
+ERR:
+	if bytes, err = common.BuildResponse(-1, err.Error(), nil); err == nil {
+		writer.Write(bytes)
+	}
 }
 
 /**
-	接口 /job/delete ：删除任务
+接口 /job/delete ：删除任务
 
-	请求格式：POST /job/delete  jobName = job1
+请求格式：POST /job/delete  jobName = job1
 */
-func handleJobDelete(writer http.ResponseWriter, request *http.Request)  {
+func handleJobDelete(writer http.ResponseWriter, request *http.Request) {
 	var (
-		err error
+		err     error
 		jobName string
-		oldJob *common.Job
-		bytes []byte
+		oldJob  *common.Job
+		bytes   []byte
 	)
 
 	//1. 解析 form 表单
@@ -263,7 +291,7 @@ func handleJobDelete(writer http.ResponseWriter, request *http.Request)  {
 	}
 
 	//4. 正常应答
-	if bytes,err = common.BuildResponse(0, "success", oldJob); err == nil {
+	if bytes, err = common.BuildResponse(0, "success", oldJob); err == nil {
 		writer.Write(bytes)
 	}
 
